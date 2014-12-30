@@ -39,7 +39,7 @@ function! s:GitLog(ribbon, ...)
     " setup new buffer
     call vimgitlog#setupNewBuf()
     noremap <buffer> <silent> q    :call vimgitlog#quit()<cr>
-    noremap <buffer> <silent> d    :call vimgitlog#diff()<cr>
+    noremap <buffer> <silent> D    :call vimgitlog#diff()<cr>
     noremap <buffer> <silent> <cr> :call vimgitlog#showdiffstat()<cr>
     noremap <buffer> <silent> f    :call vimgitlog#nextFile()<cr>
     noremap <buffer> <silent> F    :call vimgitlog#prevFile()<cr>
@@ -111,11 +111,33 @@ endfunction
 
 function! vimgitlog#showdiffstat()
     let l:oldLineNr = line(".")
-    let l:lineNr    = search(') \(\w\+:\w\+\)$', 'b')
+
+    if strlen(getline(l:oldLineNr)) == 0
+        return
+    endif
+
+    execute 'normal G'
+    let l:maxLineNr = line(".")
+    execute 'normal ' . l:oldLineNr . 'G'
+
+    let l:lineNr = 0
+
+    " the title line
+    if l:oldLineNr > 0 && strlen(getline(l:oldLineNr-1)) == 0
+        if l:oldLineNr < l:maxLineNr
+            let l:lineNr = l:oldLineNr + 1
+        else
+            return;
+        endif
+    else
+        execute "normal $"
+        let l:lineNr    = search(') \(\w\+:\w\+\)$', 'b')
+    endif
+
     let l:line      = getline(l:lineNr)
     let l:revisions = substitute(l:line, '.*) \(\w\+:\w\+\)$', '\=submatch(1)', "")
     let l:rev       = split(l:revisions, ':')
-    execute 'normal ' . l:lineNr . 'Gjj'
+    execute 'normal ' . l:oldLineNr . 'G'
 
     if bufloaded('diffstat')
         wincmd l
@@ -125,12 +147,16 @@ function! vimgitlog#showdiffstat()
         call vimgitlog#setupNewBuf()
     endif
 
+    noremap <buffer> <silent> q    :bdelete<cr>
+
     " clear buffer
     normal 1GdG
 
     " load diffstat into buffer
     let l:cmd = 'git show ' . l:rev[1]
     call vimgitlog#loadCmdIntoBuffer(l:cmd)
+
+    execute 'setlocal filetype=diff'
 
     wincmd h
 endfunction
@@ -158,24 +184,43 @@ function! vimgitlog#diff()
 
     " get filename to diff
     let l:filename = getline(".")
+
+    if strlen(l:filename) == 0
+        return
+    endif
+
     let l:fileextension = fnamemodify(l:filename, ":e")
 
     " return if file does not exist
     let l:cwd = getcwd()
     Gcd
-    let l:repo = getcwd()
-    if !filereadable(l:repo . '/' . l:filename)
+    "let l:repo = getcwd()
+    "if !filereadable(l:repo . '/' . l:filename)
+        "execute 'cd ' . l:cwd
+        "return
+    "endif
+
+    " parse git output in Ribbon buffer to get revisions
+    let l:oldLineNr = line(".")
+    let l:oldpos = getpos(".")
+    silent! execute 'normal $'
+
+    let l:lineNr    = search(') \(\w\+:\w\+\)$', 'b')
+
+    "echo "old=" . l:oldLineNr . ", search:" . l:lineNr
+
+    if l:oldLineNr - l:lineNr < 1 || (l:oldLineNr > 1 && strlen(getline(l:oldLineNr - 1)) == 0)
+        execute 'normal ' . l:oldLineNr . 'G'
+        call setpos('.', l:oldpos)
         execute 'cd ' . l:cwd
         return
     endif
 
-    " parse git output in Ribbon buffer to get revisions
-    let l:oldLineNr = line(".")
-    let l:lineNr    = search(') \(\w\+:\w\+\)$', 'b')
     let l:line      = getline(l:lineNr)
     let l:revisions = substitute(l:line, '.*) \(\w\+:\w\+\)$', '\=submatch(1)', "")
     let l:rev       = split(l:revisions, ':')
     execute 'normal ' . l:oldLineNr . 'G'
+    call setpos('.', l:oldpos)
 
     " show rev0:file
     execute 'Git! show ' . l:rev[0] . ':' . l:filename
