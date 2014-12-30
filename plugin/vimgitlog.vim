@@ -9,13 +9,19 @@
 let g:RibbonBufname = 'Ribbon'
 let g:GitLogBufname = 'GitLog'
 let g:RibbonHeight  = 10
-let g:GitLogGitCmd  = 'git log --pretty=format:''\%an (\%cr) \%p:\%h\%n\%s'' --name-only --no-merges --topo-order '
+let g:GitLogGitCmd  = 'git log --pretty=format:''\%s\%n\%an (\%cr) \%p:\%h'' --name-only --no-merges --topo-order '
 let g:GitLogShowCmd = 'git show '
 let g:GitLogShowLines = 300
 
 let s:bufnr = 0
 let s:cmd = 0
 let s:lines = 0
+
+let s:match_ids = []
+
+highlight GitLogTitle term=bold cterm=bold ctermfg=166 gui=bold guifg=Magenta
+highlight GitLogFiles term=bold cterm=bold ctermfg=37 gui=bold guifg=Green
+highlight GitLogAuthor term=NONE cterm=NONE gui=NONE
 
 function! s:GitLog(ribbon, ...)
     " create new buffer
@@ -25,6 +31,10 @@ function! s:GitLog(ribbon, ...)
     endif
     let l:cmd = 'edit ' . l:bufname
     execute l:cmd
+
+    autocmd! BufEnter,BufHidden <buffer>
+    autocmd BufEnter  <buffer> call <SID>AddMatchHighlight()
+    autocmd BufWinLeave <buffer> call <SID>RemoveMatchHighlight()
 
     " setup new buffer
     call vimgitlog#setupNewBuf()
@@ -44,6 +54,7 @@ function! s:GitLog(ribbon, ...)
         let l:cmd = l:cmd . ' ' . c . ' '
     endfor
     call vimgitlog#loadMoreCmd(l:cmd)
+    call <SID>AddMatchHighlight()
 
     let s:bufnr = bufnr(g:RibbonBufname)
 endfunction
@@ -84,7 +95,7 @@ function! vimgitlog#setupNewBuf()
     setlocal buftype=nofile
     setlocal noswapfile
     setlocal nowrap
-    setlocal ft=git
+    setlocal ft=gitlog
     "set bufhidden=hide
     "setlocal nobuflisted
     "setlocal nolist
@@ -147,7 +158,8 @@ function! vimgitlog#diff()
 
     " get filename to diff
     let l:filename = getline(".")
-    
+    let l:fileextension = fnamemodify(l:filename, ":e")
+
     " return if file does not exist
     let l:cwd = getcwd()
     Gcd
@@ -178,9 +190,15 @@ function! vimgitlog#diff()
     diffthis
     wincmd p
     execute l:cmd
+    if strlen(l:fileextension) > 0
+        execute 'setlocal filetype=' . l:fileextension
+    endif
     diffthis
     wincmd p
     execute l:cmd
+    if strlen(l:fileextension) > 0
+        execute 'setlocal filetype=' . l:fileextension
+    endif
 
     " return user to original wd
     execute 'cd ' . l:cwd
@@ -189,6 +207,25 @@ endfunction
 function! s:RibbonSave()
     silent !git tag --force _ribbon origin/master
     redraw!
+endfunction
+
+function! s:AddMatchHighlight()
+    "echo "AddMatchHighlight"
+    call <SID>RemoveMatchHighlight()
+
+    let s:match_ids = []
+    "call add(s:match_ids, matchadd("GitLogFiles", "^.*\\w\\+.*$", -100))
+    call add(s:match_ids, matchadd("GitLogFiles", "^[^():]*$", -100))
+    ""call add(s:match_ids, matchadd("GitLogAuthor", "^\\ addw\\+.*\\s(.*)\\s\\w\\+:\\w\\+$", -99))
+    call add(s:match_ids, matchadd("GitLogTitle", "^\\n.*\\w\\+.*$", -99))
+endfunction
+
+function! s:RemoveMatchHighlight()
+    "echomsg "RemoveMatchHighlight"
+    for id in s:match_ids
+        call matchdelete(id)
+    endfor
+    let s:match_ids = []
 endfunction
 
 command! -nargs=* GitLog     :call s:GitLog(0, <f-args>)
