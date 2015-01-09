@@ -9,7 +9,7 @@
 let g:RibbonBufname = 'Ribbon'
 let g:GitLogBufname = 'GitLog'
 let g:RibbonHeight  = 10
-let g:GitLogGitCmd  = 'git log --pretty=format:''\%s\%n\%an (\%cr) \%p:\%h'' --name-only --no-merges --topo-order '
+let g:GitLogGitCmd  = 'git log --pretty=format:''\%s\%n\%an (\%cr) \%p:\%h'' --name-status --no-merges --topo-order '
 let g:GitLogShowCmd = 'git show '
 let g:GitLogShowLines = 300
 
@@ -20,7 +20,9 @@ let s:lines = 0
 let s:match_ids = []
 
 highlight GitLogTitle term=bold cterm=bold ctermfg=166 gui=bold guifg=Magenta
-highlight GitLogFiles term=bold cterm=bold ctermfg=37 gui=bold guifg=Green
+highlight GitLogFilesAdd term=bold cterm=bold ctermfg=37 gui=bold guifg=Green
+highlight GitLogFilesDelete term=bold cterm=bold ctermfg=160 gui=bold guifg=Red
+highlight GitLogFilesModify term=bold cterm=bold ctermfg=4 gui=bold guifg=Blue
 highlight GitLogAuthor term=NONE cterm=NONE gui=NONE
 
 function! s:GitLog(ribbon, ...)
@@ -189,6 +191,13 @@ function! vimgitlog#diff()
         return
     endif
 
+    let l:str_list = split(l:filename, '\t')
+    if len(l:str_list) != 2
+        return
+    endif
+
+    let l:filename = l:str_list[1]
+
     let l:fileextension = fnamemodify(l:filename, ":e")
 
     " return if file does not exist
@@ -260,9 +269,12 @@ function! s:AddMatchHighlight()
 
     let s:match_ids = []
     "call add(s:match_ids, matchadd("GitLogFiles", "^.*\\w\\+.*$", -100))
-    call add(s:match_ids, matchadd("GitLogFiles", "^[^():]*$", -100))
+    "call add(s:match_ids, matchadd("GitLogFiles", "^[^():]*$", -100))
+    call add(s:match_ids, matchadd("GitLogFilesAdd", '^A\t\w\+.*$', -100))
+    call add(s:match_ids, matchadd("GitLogFilesDelete", '^D\t\w\+.*$', -100))
+    call add(s:match_ids, matchadd("GitLogFilesModify", '^M\t\w\+.*$', -100))
     ""call add(s:match_ids, matchadd("GitLogAuthor", "^\\ addw\\+.*\\s(.*)\\s\\w\\+:\\w\\+$", -99))
-    call add(s:match_ids, matchadd("GitLogTitle", "^\\n.*\\w\\+.*$", -99))
+    call add(s:match_ids, matchadd("GitLogTitle", '^\n.*\w\+.*$', -99))
 endfunction
 
 function! s:RemoveMatchHighlight()
